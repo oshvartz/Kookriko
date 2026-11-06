@@ -42,6 +42,7 @@ function createInitialMasterState(
     kookrikoCallerId: null,
     finalTurnPlayerIds: [],
     lastActionMessage: `${hostPlayer.nickname} created room ${roomCode}. Waiting for players (2–4)...`,
+    lastMoveEvent: null,
     winnerIds: [],
   };
 }

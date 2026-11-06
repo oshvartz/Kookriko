@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  ArrowLeftRight,
   CheckCircle2,
   Crown,
   Eye,
@@ -32,6 +33,32 @@ export const GameBoard: React.FC = () => {
     slotIndex: number;
   } | null>(null);
 
+  // Splash banner state when Kookriko is called so every player gets a huge visual alert
+  const [kookrikoSplashCaller, setKookrikoSplashCaller] = useState<
+    string | null
+  >(null);
+
+  const kookrikoCallerId = clientState?.kookrikoCallerId ?? null;
+  const kookrikoCallerPlayer = clientState?.players.find(
+    (p) => p.id === kookrikoCallerId
+  );
+
+  useEffect(() => {
+    if (kookrikoCallerId && kookrikoCallerPlayer) {
+      const callerLabel =
+        kookrikoCallerId === myPlayerId
+          ? 'YOU'
+          : kookrikoCallerPlayer.nickname.toUpperCase();
+      setKookrikoSplashCaller(callerLabel);
+      const timer = setTimeout(() => {
+        setKookrikoSplashCaller(null);
+      }, 2800);
+      return () => clearTimeout(timer);
+    } else {
+      setKookrikoSplashCaller(null);
+    }
+  }, [kookrikoCallerId, kookrikoCallerPlayer, myPlayerId]);
+
   if (!clientState) return null;
 
   const isHost = role === 'HOST';
@@ -49,6 +76,7 @@ export const GameBoard: React.FC = () => {
   const turnStep = clientState.turnStep;
   const myDrawnCard = clientState.myDrawnCard;
   const topDiscard = clientState.topDiscard;
+  const lastMoveEvent = clientState.lastMoveEvent;
 
   const isTopDiscardFox =
     topDiscard?.kind === 'FOX_PEEK' || topDiscard?.kind === 'FOX_SWAP';
@@ -59,8 +87,6 @@ export const GameBoard: React.FC = () => {
   const canTapDrawPile = isMyTurn && turnStep === 'AWAITING_DRAW';
 
   // Can I tap the Discard Pile?
-  // 1) To draw from discard (during AWAITING_DRAW, if topDiscard exists and isn't a Fox card)
-  // 2) To discard the card I just drew from the deck (during DECIDING_DRAWN_CARD when drawnSource === 'DECK')
   const canDrawFromDiscard =
     isMyTurn &&
     turnStep === 'AWAITING_DRAW' &&
@@ -86,6 +112,54 @@ export const GameBoard: React.FC = () => {
     isMyTurn &&
     (turnStep === 'AWAITING_DRAW' || turnStep === 'DECIDING_DRAWN_CARD') &&
     clientState.kookrikoCallerId === null;
+
+  /**
+   * Returns visual highlight metadata if a given player's card slot was involved
+   * in the most recent swap (`HAND_SWAP` or `FOX_SWAP`).
+   */
+  const getSlotSwapHighlight = (
+    playerId: string,
+    slotIndex: number
+  ): { isSwapped: boolean; badge?: string } => {
+    if (!lastMoveEvent || phase === 'INITIAL_PEEK') {
+      return { isSwapped: false };
+    }
+
+    if (lastMoveEvent.kind === 'HAND_SWAP') {
+      if (
+        lastMoveEvent.actorId === playerId &&
+        lastMoveEvent.slotIndex === slotIndex
+      ) {
+        return {
+          isSwapped: true,
+          badge: `⇄ NEW`,
+        };
+      }
+    }
+
+    if (lastMoveEvent.kind === 'FOX_SWAP') {
+      if (
+        lastMoveEvent.actorId === playerId &&
+        lastMoveEvent.actorSlotIndex === slotIndex
+      ) {
+        return {
+          isSwapped: true,
+          badge: `⇄ #${lastMoveEvent.targetSlotIndex + 1}`,
+        };
+      }
+      if (
+        lastMoveEvent.targetPlayerId === playerId &&
+        lastMoveEvent.targetSlotIndex === slotIndex
+      ) {
+        return {
+          isSwapped: true,
+          badge: `⇄ #${lastMoveEvent.actorSlotIndex + 1}`,
+        };
+      }
+    }
+
+    return { isSwapped: false };
+  };
 
   // Handlers
   const handleDrawPileTap = () => {
@@ -125,7 +199,6 @@ export const GameBoard: React.FC = () => {
 
     if (canTapForFoxSwap) {
       if (selectedOpponentTarget) {
-        // Opponent card already selected -> complete Fox Swap immediately!
         dispatchIntent({
           type: 'FOX_SWAP_CARDS',
           playerId: myPlayerId,
@@ -149,7 +222,6 @@ export const GameBoard: React.FC = () => {
     clearError();
 
     if (selectedMySlot !== null) {
-      // My card already selected -> complete Fox Swap immediately!
       dispatchIntent({
         type: 'FOX_SWAP_CARDS',
         playerId: myPlayerId,
@@ -187,12 +259,12 @@ export const GameBoard: React.FC = () => {
         return 'Tap the Draw Pile or Discard Pile, or call Kookriko!';
       case 'DECIDING_DRAWN_CARD':
         if (isMyDrawnCardFox) {
-          return 'Tap "Use Fox Power" or tap the Discard Pile to discard.';
+          return 'Tap "Use Fox Power" or tap Discard.';
         }
         if (clientState.drawnSource === 'DISCARD') {
           return 'Tap 1 of your 4 cards below to swap with this card.';
         }
-        return 'Tap 1 of your 4 cards to swap, or tap Discard Pile to discard.';
+        return 'Tap 1 of your 4 cards to swap, or tap Discard.';
       case 'PEEKING_OWN_CARD':
         return '🦊 Fox Peek: Tap 1 of your 4 cards below to secretly inspect it.';
       case 'PERFORMING_PEEK_VIEW':
@@ -211,7 +283,28 @@ export const GameBoard: React.FC = () => {
   };
 
   return (
-    <div className="h-[100dvh] w-full max-w-md mx-auto overflow-hidden bg-gradient-to-b from-stone-950 via-stone-900 to-amber-950 text-amber-50 flex flex-col justify-between p-2.5 select-none">
+    <div className="relative h-[100dvh] w-full max-w-md mx-auto overflow-hidden bg-gradient-to-b from-stone-950 via-stone-900 to-amber-950 text-amber-50 flex flex-col justify-between p-2.5 select-none">
+      {/* FULL-SCREEN KOOKRIKO SPLASH ALERT OVERLAY (Shows for 2.8s when called) */}
+      {kookrikoSplashCaller && phase === 'PLAYING' && (
+        <div
+          onClick={() => setKookrikoSplashCaller(null)}
+          className="absolute inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-6 cursor-pointer"
+        >
+          <div className="w-full rounded-3xl bg-gradient-to-br from-red-600 via-orange-500 to-amber-500 p-5 text-center shadow-2xl border-2 border-yellow-300 animate-bounce space-y-2">
+            <div className="text-5xl">🐓</div>
+            <h2 className="text-3xl font-black tracking-tight text-white drop-shadow">
+              KOOKRIKO!
+            </h2>
+            <p className="text-sm font-extrabold text-amber-100 uppercase tracking-wider">
+              Called by {kookrikoSplashCaller}!
+            </p>
+            <p className="text-xs font-bold text-stone-950 bg-yellow-300/95 rounded-xl py-1.5 px-3 inline-block">
+              Every other player gets 1 FINAL TURN!
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* 1. TOP BAR + OPPONENTS ZONE (Anchored to Top Half) */}
       <section className="space-y-1.5 shrink-0">
         {/* Compact Header Bar */}
@@ -220,15 +313,9 @@ export const GameBoard: React.FC = () => {
             <span className="font-mono font-black text-amber-300 tracking-wider">
               #{clientState.roomCode}
             </span>
-            {clientState.kookrikoCallerId && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-500/20 border border-red-400/50 text-red-200 text-[10px] font-extrabold animate-pulse">
-                <Flame className="w-3 h-3 text-red-400" />
-                FINAL TURNS
-              </span>
-            )}
           </div>
 
-          <div className="text-[11px] text-stone-300 truncate max-w-[180px]">
+          <div className="text-[11px] text-stone-300 truncate max-w-[210px]">
             {clientState.lastActionMessage}
           </div>
 
@@ -241,6 +328,26 @@ export const GameBoard: React.FC = () => {
             <LogOut className="w-3.5 h-3.5" />
           </button>
         </div>
+
+        {/* PERSISTENT HIGH-VISIBILITY KOOKRIKO BANNER FOR ALL PLAYERS */}
+        {clientState.kookrikoCallerId && phase === 'PLAYING' && (
+          <div className="w-full px-3 py-1.5 rounded-xl bg-gradient-to-r from-red-700 via-orange-600 to-red-700 border border-yellow-300/80 shadow-lg shadow-red-600/30 flex items-center justify-between text-white animate-pulse">
+            <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wide">
+              <span className="text-base">🐓</span>
+              <span>
+                KOOKRIKO BY{' '}
+                {clientState.kookrikoCallerId === myPlayerId
+                  ? 'YOU'
+                  : kookrikoCallerPlayer?.nickname}
+                !
+              </span>
+            </div>
+            <span className="px-2 py-0.5 rounded-full bg-yellow-300 text-stone-950 text-[10px] font-black uppercase flex items-center gap-1">
+              <Flame className="w-3 h-3 fill-current" />
+              Final Turns
+            </span>
+          </div>
+        )}
 
         {/* Opponents Grid (1 to 3 Opponents) */}
         <div
@@ -265,13 +372,15 @@ export const GameBoard: React.FC = () => {
                 className={`rounded-xl p-1.5 border transition ${
                   isOppTurn
                     ? 'bg-amber-500/15 border-amber-400 shadow-md shadow-amber-500/10'
-                    : isRoundWinner
-                      ? 'bg-emerald-500/15 border-emerald-400'
-                      : 'bg-stone-900/80 border-stone-800'
+                    : isKookrikoCaller
+                      ? 'bg-red-950/60 border-red-400/80'
+                      : isRoundWinner
+                        ? 'bg-emerald-500/15 border-emerald-400'
+                        : 'bg-stone-900/80 border-stone-800'
                 }`}
               >
                 {/* Opponent Name & Score */}
-                <div className="flex items-center justify-between gap-1 mb-1 px-0.5">
+                <div className="flex items-center justify-between gap-1 mb-1.5 px-0.5">
                   <div className="flex items-center gap-1 truncate">
                     {opp.isHost && (
                       <Crown className="w-3 h-3 text-yellow-400 shrink-0" />
@@ -283,7 +392,7 @@ export const GameBoard: React.FC = () => {
                   <div className="flex items-center gap-1 shrink-0">
                     {isKookrikoCaller && (
                       <span
-                        className="text-[10px]"
+                        className="px-1 py-0.2 rounded bg-red-500 text-white text-[9px] font-black uppercase"
                         title="Called Kookriko!"
                       >
                         🐓
@@ -298,11 +407,15 @@ export const GameBoard: React.FC = () => {
                 </div>
 
                 {/* Opponent's 4 Cards */}
-                <div className="flex items-center justify-center gap-1">
+                <div className="flex items-center justify-center gap-1 pt-0.5">
                   {opp.hand.map((slot) => {
                     const isTargetSelected =
                       selectedOpponentTarget?.playerId === opp.id &&
                       selectedOpponentTarget?.slotIndex === slot.slotIndex;
+                    const swapHighlight = getSlotSwapHighlight(
+                      opp.id,
+                      slot.slotIndex
+                    );
 
                     return (
                       <CardView
@@ -313,6 +426,8 @@ export const GameBoard: React.FC = () => {
                         slotLabel={`${slot.slotIndex + 1}`}
                         isSelectable={canTapForFoxSwap}
                         isSelected={isTargetSelected}
+                        wasRecentlySwapped={swapHighlight.isSwapped}
+                        swapBadgeText={swapHighlight.badge}
                         onClick={() =>
                           handleOpponentCardTap(opp.id, slot.slotIndex)
                         }
@@ -327,7 +442,7 @@ export const GameBoard: React.FC = () => {
       </section>
 
       {/* 2. DEAD CENTER: DRAW PILE, DISCARD PILE, DRAWN CARD & KOOKRIKO */}
-      <main className="my-auto flex flex-col items-center justify-center gap-2.5 py-1">
+      <main className="my-auto flex flex-col items-center justify-center gap-2 py-1">
         {errorMessage && (
           <div className="w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-red-950/90 border border-red-500/50 text-red-200 text-xs">
             <div className="flex items-center gap-1.5">
@@ -343,6 +458,50 @@ export const GameBoard: React.FC = () => {
             </button>
           </div>
         )}
+
+        {/* VISUAL SWAP BANNER (Clearly shows all players what swapped with what) */}
+        {lastMoveEvent &&
+          (lastMoveEvent.kind === 'FOX_SWAP' ||
+            lastMoveEvent.kind === 'HAND_SWAP') && (
+            <div className="w-full px-3 py-1.5 rounded-xl bg-cyan-950/80 border border-cyan-400/60 text-cyan-100 text-[11px] font-bold flex items-center justify-center gap-2 shadow-md">
+              <ArrowLeftRight className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
+              {lastMoveEvent.kind === 'FOX_SWAP' ? (
+                <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                  <span className="text-orange-300 font-black">🦊 FOX SWAP:</span>
+                  <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 font-extrabold">
+                    {lastMoveEvent.actorId === myPlayerId
+                      ? 'You'
+                      : lastMoveEvent.actorName}{' '}
+                    #{lastMoveEvent.actorSlotIndex + 1}
+                  </span>
+                  <span className="text-cyan-300 font-black">⇄</span>
+                  <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 font-extrabold">
+                    {lastMoveEvent.targetPlayerId === myPlayerId
+                      ? 'You'
+                      : lastMoveEvent.targetPlayerName}{' '}
+                    #{lastMoveEvent.targetSlotIndex + 1}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 flex-wrap justify-center">
+                  <span className="text-cyan-300 font-black">🔄 SWAP:</span>
+                  <span>
+                    <strong>
+                      {lastMoveEvent.actorId === myPlayerId
+                        ? 'You'
+                        : lastMoveEvent.actorName}
+                    </strong>{' '}
+                    swapped{' '}
+                    <span className="px-1.5 py-0.5 rounded bg-cyan-500/25 border border-cyan-400/40 text-cyan-200 font-extrabold">
+                      Card #{lastMoveEvent.slotIndex + 1}
+                    </span>{' '}
+                    (from {lastMoveEvent.source === 'DISCARD' ? 'Discard' : 'Deck'}{' '}
+                    → threw {lastMoveEvent.discardedLabel})
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
 
         {/* Turn Status Pill */}
         <div
@@ -452,7 +611,7 @@ export const GameBoard: React.FC = () => {
           {!isMyTurn && clientState.activePlayerHasDrawnCard && (
             <div className="flex flex-col items-center gap-1 px-2 py-1.5 rounded-2xl bg-stone-900/90 border border-stone-700">
               <span className="text-[9px] font-bold uppercase text-amber-300">
-                Holding
+                From {clientState.drawnSource}
               </span>
               <CardView card={null} faceUp={false} size="sm" />
             </div>
@@ -580,6 +739,10 @@ export const GameBoard: React.FC = () => {
                 canTapForFoxSwap;
               const isOwnSelected =
                 canTapForFoxSwap && selectedMySlot === slot.slotIndex;
+              const swapHighlight = getSlotSwapHighlight(
+                myPlayerId,
+                slot.slotIndex
+              );
 
               let badge: string | undefined;
               if (
@@ -606,6 +769,8 @@ export const GameBoard: React.FC = () => {
                   isSelectable={isOwnSelectable}
                   isSelected={isOwnSelected}
                   highlightBadge={badge}
+                  wasRecentlySwapped={swapHighlight.isSwapped}
+                  swapBadgeText={swapHighlight.badge}
                   onClick={() => handleOwnCardTap(slot.slotIndex)}
                 />
               );
@@ -621,7 +786,7 @@ export const GameBoard: React.FC = () => {
                 {myPlayer.nickname} (You)
               </span>
               {clientState.kookrikoCallerId === myPlayerId && (
-                <span className="px-1.5 py-0.5 rounded bg-red-500/20 border border-red-500/40 text-red-300 text-[10px] font-bold">
+                <span className="px-1.5 py-0.5 rounded bg-red-500 text-white text-[10px] font-black uppercase">
                   🐓 Called Kookriko
                 </span>
               )}
@@ -636,12 +801,18 @@ export const GameBoard: React.FC = () => {
             <div className="font-mono text-stone-300 text-[11px]">
               {phase === 'ROUND_OVER' && myPlayer.roundScore !== null ? (
                 <span>
-                  Round: <strong className="text-amber-300">{myPlayer.roundScore}</strong>{' '}
+                  Round:{' '}
+                  <strong className="text-amber-300">
+                    {myPlayer.roundScore}
+                  </strong>{' '}
                   | Total: <strong>{myPlayer.totalScore}</strong>
                 </span>
               ) : (
                 <span>
-                  Total Score: <strong className="text-amber-300">{myPlayer.totalScore}</strong>
+                  Total Score:{' '}
+                  <strong className="text-amber-300">
+                    {myPlayer.totalScore}
+                  </strong>
                 </span>
               )}
             </div>

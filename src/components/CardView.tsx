@@ -9,6 +9,8 @@ export interface CardViewProps {
   isSelectable?: boolean;
   isSelected?: boolean;
   highlightBadge?: string;
+  wasRecentlySwapped?: boolean;
+  swapBadgeText?: string;
   disabled?: boolean;
   onClick?: () => void;
 }
@@ -21,6 +23,8 @@ export const CardView: React.FC<CardViewProps> = ({
   isSelectable = false,
   isSelected = false,
   highlightBadge,
+  wasRecentlySwapped = false,
+  swapBadgeText,
   disabled = false,
   onClick,
 }) => {
@@ -34,11 +38,13 @@ export const CardView: React.FC<CardViewProps> = ({
     ? 'ring-3 ring-amber-300 scale-105 shadow-lg shadow-amber-400/40 z-10 cursor-pointer'
     : isSelectable && !disabled
       ? 'ring-2 ring-emerald-400/90 hover:scale-[1.03] active:scale-95 shadow-md shadow-emerald-500/20 cursor-pointer animate-pulse'
-      : disabled
-        ? 'opacity-60 cursor-not-allowed'
-        : onClick
-          ? 'cursor-pointer active:scale-95'
-          : 'cursor-default';
+      : wasRecentlySwapped
+        ? 'ring-2 ring-cyan-400 shadow-lg shadow-cyan-400/40 z-10'
+        : disabled
+          ? 'opacity-60 cursor-not-allowed'
+          : onClick
+            ? 'cursor-pointer active:scale-95'
+            : 'cursor-default';
 
   // Card Back (Face Down)
   if (!faceUp || !card) {
@@ -69,6 +75,12 @@ export const CardView: React.FC<CardViewProps> = ({
         {highlightBadge && (
           <span className="absolute -top-1.5 inset-x-1 bg-amber-400 text-stone-950 text-[8px] font-black uppercase tracking-tighter py-0.5 px-1 rounded shadow">
             {highlightBadge}
+          </span>
+        )}
+
+        {wasRecentlySwapped && !highlightBadge && (
+          <span className="absolute -top-1.5 inset-x-0.5 bg-cyan-400 text-stone-950 text-[7px] font-black uppercase tracking-tighter py-0.5 px-0.5 rounded shadow animate-bounce">
+            {swapBadgeText ?? '⇄ SWAP'}
           </span>
         )}
       </button>
@@ -163,6 +175,12 @@ export const CardView: React.FC<CardViewProps> = ({
       {highlightBadge && (
         <span className="absolute -top-1.5 inset-x-1 bg-amber-400 text-stone-950 text-[8px] font-black uppercase tracking-tighter py-0.5 px-1 rounded shadow">
           {highlightBadge}
+        </span>
+      )}
+
+      {wasRecentlySwapped && !highlightBadge && (
+        <span className="absolute -top-1.5 inset-x-0.5 bg-cyan-400 text-stone-950 text-[7px] font-black uppercase tracking-tighter py-0.5 px-0.5 rounded shadow animate-bounce">
+          {swapBadgeText ?? '⇄ SWAP'}
         </span>
       )}
     </button>

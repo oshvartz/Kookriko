@@ -84,6 +84,7 @@ export function sanitizeStateForPlayer(
     drawnSource: master.drawnSource,
     kookrikoCallerId: master.kookrikoCallerId,
     lastActionMessage: master.lastActionMessage,
+    lastMoveEvent: master.lastMoveEvent,
     winnerIds: master.winnerIds,
   };
 }

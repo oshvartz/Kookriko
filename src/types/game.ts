@@ -63,6 +63,33 @@ export type TurnStep =
 
 export type DrawSource = 'DECK' | 'DISCARD';
 
+export type MoveEvent =
+  | {
+      id: string;
+      kind: 'HAND_SWAP';
+      actorId: string;
+      actorName: string;
+      slotIndex: number;
+      source: DrawSource;
+      discardedLabel: string;
+    }
+  | {
+      id: string;
+      kind: 'FOX_SWAP';
+      actorId: string;
+      actorName: string;
+      actorSlotIndex: number;
+      targetPlayerId: string;
+      targetPlayerName: string;
+      targetSlotIndex: number;
+    }
+  | {
+      id: string;
+      kind: 'KOOKRIKO';
+      callerId: string;
+      callerName: string;
+    };
+
 /**
  * Authoritative Master GameState held exclusively in the Host's memory.
  * Clients never receive this raw structure.
@@ -95,6 +122,11 @@ export interface GameState {
    * Human-readable status or action log message for the table banner.
    */
   lastActionMessage: string;
+  /**
+   * Structured visual event for the most recent swap or Kookriko call so all players
+   * can clearly see which cards were swapped or who called Kookriko.
+   */
+  lastMoveEvent: MoveEvent | null;
   winnerIds: string[];
 }
 
@@ -120,6 +152,7 @@ export interface ClientGameState {
   drawnSource: DrawSource | null;
   kookrikoCallerId: string | null;
   lastActionMessage: string;
+  lastMoveEvent: MoveEvent | null;
   winnerIds: string[];
 }
 

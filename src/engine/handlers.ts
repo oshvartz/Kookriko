@@ -195,6 +195,7 @@ export function handleStartGame(
       kookrikoCallerId: null,
       finalTurnPlayerIds: [],
       winnerIds: [],
+      lastMoveEvent: null,
       lastActionMessage:
         'Memorize your 2 outer cards, then tap "I\'m Ready!"',
     },
@@ -429,6 +430,12 @@ export function handleSwap(
   );
 
   const nextDiscardPile = [...state.discardPile, outgoingCard];
+  const discardedLabel =
+    outgoingCard.kind === 'FOX_PEEK'
+      ? 'Fox Peek'
+      : outgoingCard.kind === 'FOX_SWAP'
+        ? 'Fox Swap'
+        : `${outgoingCard.value}`;
 
   const intermediateState: GameState = {
     ...state,
@@ -436,12 +443,21 @@ export function handleSwap(
     discardPile: nextDiscardPile,
     drawnCard: null,
     drawnSource: null,
+    lastMoveEvent: {
+      id: `swap-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      kind: 'HAND_SWAP',
+      actorId: activePlayer.id,
+      actorName: activePlayer.nickname,
+      slotIndex: handSlotIndex,
+      source: state.drawnSource ?? 'DECK',
+      discardedLabel,
+    },
   };
 
   return {
     nextState: advanceTurnOrEndRound(
       intermediateState,
-      `${activePlayer.nickname} swapped card #${handSlotIndex + 1}.`
+      `${activePlayer.nickname} swapped card #${handSlotIndex + 1} (discarded ${discardedLabel}).`
     ),
   };
 }
@@ -621,12 +637,22 @@ export function handleFoxSwapCards(
   const intermediateState: GameState = {
     ...state,
     players: updatedPlayers,
+    lastMoveEvent: {
+      id: `foxswap-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      kind: 'FOX_SWAP',
+      actorId: activePlayer.id,
+      actorName: activePlayer.nickname,
+      actorSlotIndex: mySlotIndex,
+      targetPlayerId: targetPlayer.id,
+      targetPlayerName: targetPlayer.nickname,
+      targetSlotIndex: targetSlotIndex,
+    },
   };
 
   return {
     nextState: advanceTurnOrEndRound(
       intermediateState,
-      `${activePlayer.nickname} used Fox Swap with ${targetPlayer.nickname}!`
+      `🦊 ${activePlayer.nickname} (#${mySlotIndex + 1}) ⇄ ${targetPlayer.nickname} (#${targetSlotIndex + 1})!`
     ),
   };
 }
@@ -674,6 +700,12 @@ export function handleKookriko(
     ...state,
     kookrikoCallerId: playerId,
     finalTurnPlayerIds: otherPlayerIds,
+    lastMoveEvent: {
+      id: `kookriko-${Date.now()}`,
+      kind: 'KOOKRIKO',
+      callerId: activePlayer.id,
+      callerName: activePlayer.nickname,
+    },
   };
 
   if (state.turnStep === 'AWAITING_DRAW') {
