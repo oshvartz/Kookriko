@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Trigger mobile-landscape layout on landscape phones/tablets (short height), keeping desktop monitors clean */
+@custom-variant mobile-landscape (@media (orientation: landscape) and (max-height: 600px));
+
 html,
 body,
 #root {
@@ -11,4 +14,151 @@ body,
   user-select: none;
   -webkit-user-select: none;
   -webkit-touch-callout: none;
+  background-color: #163024;
+}
+
+/* 3D Card Flip Utilities */
+.card-perspective {
+  perspective: 1000px;
+}
+
+.card-inner-3d {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.52s cubic-bezier(0.22, 1.15, 0.36, 1);
+}
+
+.card-inner-3d.is-flipped {
+  transform: rotateY(180deg);
+}
+
+.card-face {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.card-face-front {
+  transform: rotateY(180deg);
+}
+
+/* Vibrant Storybook Meadow & Warm Oak Tabletop */
+.bg-tabletop {
+  background-color: #163829;
+  background-image:
+    radial-gradient(ellipse at 50% 45%, rgba(52, 138, 95, 0.42) 0%, rgba(24, 78, 54, 0.72) 52%, rgba(13, 41, 29, 0.96) 100%),
+    radial-gradient(circle at 15% 15%, rgba(251, 191, 36, 0.14) 0%, transparent 45%),
+    radial-gradient(circle at 85% 85%, rgba(249, 115, 22, 0.14) 0%, transparent 45%);
+  box-shadow: inset 0 0 0 4px rgba(180, 105, 35, 0.38);
+}
+
+/* Warm Golden-Trimmed Felt Center Mat */
+.bg-felt-mat {
+  background: radial-gradient(circle at 50% 45%, rgba(45, 122, 83, 0.85) 0%, rgba(23, 76, 52, 0.92) 70%, rgba(16, 54, 37, 0.96) 100%);
+  box-shadow:
+    inset 0 2px 16px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 2px rgba(253, 224, 71, 0.25),
+    0 8px 24px rgba(0, 0, 0, 0.38);
+}
+
+/* Warm Rustic Wood Panel for Player Hands & Cards */
+.bg-wood-panel {
+  background: linear-gradient(180deg, rgba(68, 36, 18, 0.94) 0%, rgba(46, 23, 10, 0.97) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(253, 224, 71, 0.28),
+    0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+/* Warm Storybook Parchment Banner */
+.bg-parchment {
+  background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 55%, #fde68a 100%);
+  color: #451a03;
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+/* Card & Game Animations */
+@keyframes dealCardIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-24px) scale(0.76) rotate(-6deg);
+  }
+  70% {
+    opacity: 1;
+    transform: translateY(2px) scale(1.02) rotate(1deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1) rotate(0deg);
+  }
+}
+
+.animate-deal-in {
+  animation: dealCardIn 0.45s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+@keyframes swapPop {
+  0% {
+    transform: scale(0.84) translateY(6px);
+  }
+  45% {
+    transform: scale(1.12) translateY(-5px) rotate(-2deg);
+  }
+  75% {
+    transform: scale(0.98) translateY(1px) rotate(1deg);
+  }
+  100% {
+    transform: scale(1) translateY(0) rotate(0deg);
+  }
+}
+
+.animate-swap-pop {
+  animation: swapPop 0.58s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes drawCardPop {
+  0% {
+    opacity: 0;
+    transform: scale(0.7) translateY(-12px) rotate(-5deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0) rotate(0deg);
+  }
+}
+
+.animate-draw-pop {
+  animation: drawCardPop 0.32s cubic-bezier(0.22, 1.15, 0.36, 1);
+}
+
+@keyframes floatSlow {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.animate-float-slow {
+  animation: floatSlow 3s ease-in-out infinite;
+}
+
+@keyframes pulseGlowGold {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.55), 0 6px 16px rgba(245, 158, 11, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgba(250, 204, 21, 0), 0 6px 22px rgba(245, 158, 11, 0.55);
+  }
+}
+
+.animate-glow-gold {
+  animation: pulseGlowGold 1.9s infinite;
 }

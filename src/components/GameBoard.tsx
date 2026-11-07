@@ -11,9 +11,14 @@ import {
   Sparkles,
   Trophy,
   AlertCircle,
+  BookOpen,
+  Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { useGameStore } from '../store/useGameStore';
 import { CardView } from './CardView';
+import { RulesModal } from './RulesModal';
+import { soundFX } from '../utils/sound';
 
 export const GameBoard: React.FC = () => {
   const {
@@ -32,6 +37,9 @@ export const GameBoard: React.FC = () => {
     playerId: string;
     slotIndex: number;
   } | null>(null);
+
+  const [isRulesOpen, setIsRulesOpen] = useState(false);
+  const [muted, setMuted] = useState(() => soundFX.isMuted());
 
   // Splash banner state when Kookriko is called so every player gets a huge visual alert
   const [kookrikoSplashCaller, setKookrikoSplashCaller] = useState<
@@ -52,7 +60,7 @@ export const GameBoard: React.FC = () => {
       setKookrikoSplashCaller(callerLabel);
       const timer = setTimeout(() => {
         setKookrikoSplashCaller(null);
-      }, 2800);
+      }, 2600);
       return () => clearTimeout(timer);
     } else {
       setKookrikoSplashCaller(null);
@@ -246,7 +254,7 @@ export const GameBoard: React.FC = () => {
       if (myPlayer?.hasCompletedInitialPeek) {
         return 'Waiting for other players to finish peeking...';
       }
-      return 'Memorize your outer cards (#1 & #4), then tap "I\'m Ready!"';
+      return 'Memorize outer cards (#1 & #4), then tap Ready!';
     }
     if (phase === 'ROUND_OVER') {
       return 'All cards revealed! Lowest score wins the round.';
@@ -256,84 +264,120 @@ export const GameBoard: React.FC = () => {
     }
     switch (turnStep) {
       case 'AWAITING_DRAW':
-        return 'Tap the Draw Pile or Discard Pile, or call Kookriko!';
+        return 'Tap Draw or Discard Pile, or call Kookriko!';
       case 'DECIDING_DRAWN_CARD':
         if (isMyDrawnCardFox) {
           return 'Tap "Use Fox Power" or tap Discard.';
         }
         if (clientState.drawnSource === 'DISCARD') {
-          return 'Tap 1 of your 4 cards below to swap with this card.';
+          return 'Tap 1 of your 4 cards to swap with this card.';
         }
         return 'Tap 1 of your 4 cards to swap, or tap Discard.';
       case 'PEEKING_OWN_CARD':
-        return '🦊 Fox Peek: Tap 1 of your 4 cards below to secretly inspect it.';
+        return '🦊 Fox Peek: Tap 1 of your 4 cards to inspect.';
       case 'PERFORMING_PEEK_VIEW':
-        return 'Memorize your revealed card, then tap "Done Peeking".';
+        return 'Memorize your card, then tap "Done Peeking".';
       case 'SELECTING_SWAP_CARDS':
         if (selectedMySlot !== null) {
-          return `Selected your card #${selectedMySlot + 1}. Now tap any opponent's card above!`;
+          return `Selected #${selectedMySlot + 1}. Now tap any opponent's card!`;
         }
         if (selectedOpponentTarget !== null) {
-          return 'Selected opponent card. Now tap 1 of your 4 cards below to swap!';
+          return 'Selected opponent card. Now tap 1 of your cards!';
         }
-        return '🦊 Fox Swap: Tap 1 of your cards below AND 1 opponent card above.';
+        return '🦊 Fox Swap: Tap 1 of your cards & 1 opponent card.';
       default:
         return '';
     }
   };
 
   return (
-    <div className="relative h-[100dvh] w-full max-w-md mx-auto overflow-hidden bg-gradient-to-b from-stone-950 via-stone-900 to-amber-950 text-amber-50 flex flex-col justify-between p-2.5 select-none">
-      {/* FULL-SCREEN KOOKRIKO SPLASH ALERT OVERLAY (Shows for 2.8s when called) */}
+    <div className="relative h-[100dvh] w-full max-w-md mobile-landscape:max-w-none mx-auto overflow-y-auto overflow-x-hidden bg-tabletop text-amber-50 flex flex-col justify-between p-2.5 mobile-landscape:px-2.5 mobile-landscape:py-1.5 select-none">
+      <RulesModal isOpen={isRulesOpen} onClose={() => setIsRulesOpen(false)} />
+
+      {/* FULL-SCREEN KOOKRIKO SPLASH ALERT OVERLAY */}
       {kookrikoSplashCaller && phase === 'PLAYING' && (
         <div
           onClick={() => setKookrikoSplashCaller(null)}
-          className="absolute inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-6 cursor-pointer"
+          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 cursor-pointer"
         >
-          <div className="w-full rounded-3xl bg-gradient-to-br from-red-600 via-orange-500 to-amber-500 p-5 text-center shadow-2xl border-2 border-yellow-300 animate-bounce space-y-2">
-            <div className="text-5xl">🐓</div>
-            <h2 className="text-3xl font-black tracking-tight text-white drop-shadow">
+          <div className="w-full max-w-xs rounded-3xl bg-gradient-to-br from-red-600 via-orange-500 to-amber-500 p-4 text-center shadow-2xl border-3 border-yellow-200 animate-bounce space-y-1.5">
+            <img
+              src="/cards/card-9.png"
+              alt="Kookriko Rooster"
+              className="w-16 h-18 mx-auto rounded-2xl border-2 border-yellow-200 shadow-xl"
+            />
+            <h2 className="text-2xl font-black tracking-tight text-white drop-shadow">
               KOOKRIKO!
             </h2>
-            <p className="text-sm font-extrabold text-amber-100 uppercase tracking-wider">
+            <p className="text-xs font-extrabold text-amber-100 uppercase tracking-wider">
               Called by {kookrikoSplashCaller}!
             </p>
-            <p className="text-xs font-bold text-stone-950 bg-yellow-300/95 rounded-xl py-1.5 px-3 inline-block">
+            <p className="text-[11px] font-bold text-stone-950 bg-yellow-300/95 rounded-xl py-1 px-2.5 inline-block">
               Every other player gets 1 FINAL TURN!
             </p>
           </div>
         </div>
       )}
 
-      {/* 1. TOP BAR + OPPONENTS ZONE (Anchored to Top Half) */}
-      <section className="space-y-1.5 shrink-0">
-        {/* Compact Header Bar */}
-        <div className="flex items-center justify-between px-2 py-1 rounded-xl bg-stone-900/90 border border-stone-800 text-xs">
+      {/* TOP HEADER BAR (Shared across Portrait & Mobile Landscape) */}
+      <header className="shrink-0 space-y-1">
+        <div className="flex items-center justify-between px-2.5 py-1.5 mobile-landscape:py-1 rounded-2xl bg-wood-panel border border-amber-400/40 text-xs shadow-md">
           <div className="flex items-center gap-2">
-            <span className="font-mono font-black text-amber-300 tracking-wider">
+            <span className="px-2 py-0.5 rounded-lg bg-amber-400/20 border border-amber-300/40 font-mono font-black text-yellow-300 tracking-wider text-[11px]">
               #{clientState.roomCode}
             </span>
+            {clientState.kookrikoCallerId && phase === 'PLAYING' && (
+              <span className="hidden mobile-landscape:inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-red-600 to-orange-500 border border-yellow-300 text-white text-[10px] font-black uppercase animate-pulse">
+                <Flame className="w-3 h-3 fill-current" />
+                Kookriko by{' '}
+                {clientState.kookrikoCallerId === myPlayerId
+                  ? 'You'
+                  : kookrikoCallerPlayer?.nickname}
+              </span>
+            )}
           </div>
 
-          <div className="text-[11px] text-stone-300 truncate max-w-[210px]">
+          <div className="text-[11px] text-amber-100 font-semibold truncate max-w-[180px] mobile-landscape:max-w-[320px]">
             {clientState.lastActionMessage}
           </div>
 
-          <button
-            type="button"
-            onClick={leaveRoom}
-            className="p-1 rounded-lg bg-stone-800 hover:bg-stone-700 text-stone-300 cursor-pointer"
-            title="Leave Game"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setMuted(soundFX.toggleMute())}
+              className="p-1 rounded-xl bg-amber-950/80 hover:bg-amber-900 border border-amber-400/30 text-amber-200 cursor-pointer transition"
+              title="Toggle Sound Effects"
+            >
+              {muted ? (
+                <VolumeX className="w-3.5 h-3.5 text-stone-400" />
+              ) : (
+                <Volume2 className="w-3.5 h-3.5 text-yellow-300" />
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsRulesOpen(true)}
+              className="p-1 rounded-xl bg-amber-950/80 hover:bg-amber-900 border border-amber-400/30 text-yellow-200 cursor-pointer transition"
+              title="Card Gallery & Rules"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={leaveRoom}
+              className="p-1 rounded-xl bg-amber-950/80 hover:bg-red-900/80 border border-amber-400/30 text-amber-200 cursor-pointer transition"
+              title="Leave Game"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
-        {/* PERSISTENT HIGH-VISIBILITY KOOKRIKO BANNER FOR ALL PLAYERS */}
+        {/* Portrait-mode Kookriko Alert Banner */}
         {clientState.kookrikoCallerId && phase === 'PLAYING' && (
-          <div className="w-full px-3 py-1.5 rounded-xl bg-gradient-to-r from-red-700 via-orange-600 to-red-700 border border-yellow-300/80 shadow-lg shadow-red-600/30 flex items-center justify-between text-white animate-pulse">
+          <div className="mobile-landscape:hidden w-full px-3 py-1 rounded-xl bg-gradient-to-r from-red-600 via-orange-500 to-red-600 border border-yellow-300 shadow-lg flex items-center justify-between text-white animate-pulse">
             <div className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wide">
-              <span className="text-base">🐓</span>
+              <span className="text-sm">🐓</span>
               <span>
                 KOOKRIKO BY{' '}
                 {clientState.kookrikoCallerId === myPlayerId
@@ -348,477 +392,495 @@ export const GameBoard: React.FC = () => {
             </span>
           </div>
         )}
+      </header>
 
-        {/* Opponents Grid (1 to 3 Opponents) */}
-        <div
-          className={`grid gap-1.5 ${
-            opponents.length === 1
-              ? 'grid-cols-1 max-w-[240px] mx-auto'
-              : opponents.length === 2
-                ? 'grid-cols-2'
-                : 'grid-cols-3'
-          }`}
-        >
-          {opponents.map((opp) => {
-            const isOppTurn =
-              phase === 'PLAYING' && clientState.activePlayerId === opp.id;
-            const isKookrikoCaller = clientState.kookrikoCallerId === opp.id;
-            const isRoundWinner =
-              phase === 'ROUND_OVER' && clientState.winnerIds.includes(opp.id);
+      {/* ADAPTIVE BODY: Vertical Stack in Portrait/Desktop, 3-Column Tabletop in Mobile Landscape */}
+      <div className="flex-1 min-h-0 flex flex-col justify-between mobile-landscape:flex-row mobile-landscape:items-center mobile-landscape:justify-between mobile-landscape:gap-2 pt-1">
+        {/* ZONE 1: OPPONENTS (Top in Portrait, Left Column in Mobile Landscape) */}
+        <section className="shrink-0 mobile-landscape:w-[30%] mobile-landscape:max-h-full mobile-landscape:overflow-y-auto">
+          <div
+            className={`grid gap-1.5 mobile-landscape:gap-1 ${
+              opponents.length === 1
+                ? 'grid-cols-1 max-w-[260px] mx-auto w-full'
+                : opponents.length === 2
+                  ? 'grid-cols-2 mobile-landscape:grid-cols-1'
+                  : 'grid-cols-3 mobile-landscape:grid-cols-1'
+            }`}
+          >
+            {opponents.map((opp) => {
+              const isOppTurn =
+                phase === 'PLAYING' && clientState.activePlayerId === opp.id;
+              const isKookrikoCaller = clientState.kookrikoCallerId === opp.id;
+              const isRoundWinner =
+                phase === 'ROUND_OVER' &&
+                clientState.winnerIds.includes(opp.id);
 
-            return (
-              <div
-                key={opp.id}
-                className={`rounded-xl p-1.5 border transition ${
-                  isOppTurn
-                    ? 'bg-amber-500/15 border-amber-400 shadow-md shadow-amber-500/10'
-                    : isKookrikoCaller
-                      ? 'bg-red-950/60 border-red-400/80'
-                      : isRoundWinner
-                        ? 'bg-emerald-500/15 border-emerald-400'
-                        : 'bg-stone-900/80 border-stone-800'
-                }`}
-              >
-                {/* Opponent Name & Score */}
-                <div className="flex items-center justify-between gap-1 mb-1.5 px-0.5">
-                  <div className="flex items-center gap-1 truncate">
-                    {opp.isHost && (
-                      <Crown className="w-3 h-3 text-yellow-400 shrink-0" />
-                    )}
-                    <span className="text-[11px] font-bold text-amber-100 truncate">
-                      {opp.nickname}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    {isKookrikoCaller && (
-                      <span
-                        className="px-1 py-0.2 rounded bg-red-500 text-white text-[9px] font-black uppercase"
-                        title="Called Kookriko!"
-                      >
-                        🐓
+              return (
+                <div
+                  key={opp.id}
+                  className={`rounded-2xl p-1.5 mobile-landscape:p-1 border-2 transition-all duration-300 ${
+                    isOppTurn
+                      ? 'bg-gradient-to-b from-amber-500/35 to-amber-900/75 border-yellow-300 shadow-lg shadow-amber-400/25'
+                      : isKookrikoCaller
+                        ? 'bg-red-950/75 border-red-400 shadow-md'
+                        : isRoundWinner
+                          ? 'bg-emerald-800/65 border-emerald-300 shadow-lg'
+                          : 'bg-wood-panel border-amber-500/35'
+                  }`}
+                >
+                  {/* Opponent Name & Score */}
+                  <div className="flex items-center justify-between gap-1 mb-1 px-0.5">
+                    <div className="flex items-center gap-1 truncate">
+                      {opp.isHost && (
+                        <Crown className="w-3 h-3 text-yellow-300 shrink-0" />
+                      )}
+                      <span className="text-[11px] mobile-landscape:text-[10px] font-black text-amber-50 truncate">
+                        {opp.nickname}
                       </span>
-                    )}
-                    <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-stone-800 text-stone-300">
-                      {phase === 'ROUND_OVER' && opp.roundScore !== null
-                        ? `${opp.roundScore}pt (${opp.totalScore})`
-                        : `${opp.totalScore}pt`}
-                    </span>
+                      {isOppTurn && (
+                        <span className="w-2 h-2 rounded-full bg-yellow-300 animate-ping shrink-0" />
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {isKookrikoCaller && (
+                        <span
+                          className="px-1 py-0.2 rounded bg-red-500 text-white text-[9px] font-black uppercase"
+                          title="Called Kookriko!"
+                        >
+                          🐓
+                        </span>
+                      )}
+                      <span
+                        className={`text-[10px] mobile-landscape:text-[9px] font-mono font-black px-1.5 py-0.2 rounded-md ${
+                          isRoundWinner
+                            ? 'bg-yellow-300 text-stone-950'
+                            : 'bg-amber-950/90 border border-amber-400/30 text-yellow-200'
+                        }`}
+                      >
+                        {phase === 'ROUND_OVER' && opp.roundScore !== null
+                          ? `${opp.roundScore}pt (${opp.totalScore})`
+                          : `${opp.totalScore}pt`}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Opponent's 4 Cards */}
+                  <div className="flex items-center justify-center gap-1.5 mobile-landscape:gap-1 pt-0.5 pb-0.5">
+                    {opp.hand.map((slot) => {
+                      const isTargetSelected =
+                        selectedOpponentTarget?.playerId === opp.id &&
+                        selectedOpponentTarget?.slotIndex === slot.slotIndex;
+                      const swapHighlight = getSlotSwapHighlight(
+                        opp.id,
+                        slot.slotIndex
+                      );
+
+                      return (
+                        <CardView
+                          key={slot.slotIndex}
+                          card={slot.card}
+                          faceUp={slot.isRevealedToMe}
+                          size="sm"
+                          dealIndex={slot.slotIndex + 1}
+                          slotLabel={`${slot.slotIndex + 1}`}
+                          isSelectable={canTapForFoxSwap}
+                          isSelected={isTargetSelected}
+                          wasRecentlySwapped={swapHighlight.isSwapped}
+                          swapBadgeText={swapHighlight.badge}
+                          onClick={() =>
+                            handleOpponentCardTap(opp.id, slot.slotIndex)
+                          }
+                        />
+                      );
+                    })}
                   </div>
                 </div>
-
-                {/* Opponent's 4 Cards */}
-                <div className="flex items-center justify-center gap-1 pt-0.5">
-                  {opp.hand.map((slot) => {
-                    const isTargetSelected =
-                      selectedOpponentTarget?.playerId === opp.id &&
-                      selectedOpponentTarget?.slotIndex === slot.slotIndex;
-                    const swapHighlight = getSlotSwapHighlight(
-                      opp.id,
-                      slot.slotIndex
-                    );
-
-                    return (
-                      <CardView
-                        key={slot.slotIndex}
-                        card={slot.card}
-                        faceUp={slot.isRevealedToMe}
-                        size="sm"
-                        slotLabel={`${slot.slotIndex + 1}`}
-                        isSelectable={canTapForFoxSwap}
-                        isSelected={isTargetSelected}
-                        wasRecentlySwapped={swapHighlight.isSwapped}
-                        swapBadgeText={swapHighlight.badge}
-                        onClick={() =>
-                          handleOpponentCardTap(opp.id, slot.slotIndex)
-                        }
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {/* 2. DEAD CENTER: DRAW PILE, DISCARD PILE, DRAWN CARD & KOOKRIKO */}
-      <main className="my-auto flex flex-col items-center justify-center gap-2 py-1">
-        {errorMessage && (
-          <div className="w-full flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl bg-red-950/90 border border-red-500/50 text-red-200 text-xs">
-            <div className="flex items-center gap-1.5">
-              <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
-              <span>{errorMessage}</span>
-            </div>
-            <button
-              type="button"
-              onClick={clearError}
-              className="font-bold text-red-300"
-            >
-              ✕
-            </button>
+              );
+            })}
           </div>
-        )}
+        </section>
 
-        {/* VISUAL SWAP BANNER (Clearly shows all players what swapped with what) */}
-        {lastMoveEvent &&
-          (lastMoveEvent.kind === 'FOX_SWAP' ||
-            lastMoveEvent.kind === 'HAND_SWAP') && (
-            <div className="w-full px-3 py-1.5 rounded-xl bg-cyan-950/80 border border-cyan-400/60 text-cyan-100 text-[11px] font-bold flex items-center justify-center gap-2 shadow-md">
-              <ArrowLeftRight className="w-3.5 h-3.5 text-cyan-300 shrink-0" />
-              {lastMoveEvent.kind === 'FOX_SWAP' ? (
-                <div className="flex items-center gap-1.5 flex-wrap justify-center">
-                  <span className="text-orange-300 font-black">🦊 FOX SWAP:</span>
-                  <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 font-extrabold">
-                    {lastMoveEvent.actorId === myPlayerId
-                      ? 'You'
-                      : lastMoveEvent.actorName}{' '}
-                    #{lastMoveEvent.actorSlotIndex + 1}
-                  </span>
-                  <span className="text-cyan-300 font-black">⇄</span>
-                  <span className="px-1.5 py-0.5 rounded bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 font-extrabold">
-                    {lastMoveEvent.targetPlayerId === myPlayerId
-                      ? 'You'
-                      : lastMoveEvent.targetPlayerName}{' '}
-                    #{lastMoveEvent.targetSlotIndex + 1}
-                  </span>
-                </div>
-              ) : (
-                <div className="flex items-center gap-1.5 flex-wrap justify-center">
-                  <span className="text-cyan-300 font-black">🔄 SWAP:</span>
-                  <span>
-                    <strong>
+        {/* ZONE 2: CENTER FELT TABLETOP (Center in both Portrait & Mobile Landscape) */}
+        <main className="my-auto mobile-landscape:my-0 mobile-landscape:w-[37%] flex flex-col items-center justify-center gap-1.5 mobile-landscape:gap-1 py-1">
+          {errorMessage && (
+            <div className="w-full flex items-center justify-between gap-2 px-2.5 py-1 rounded-xl bg-red-900/95 border border-red-300 text-white text-[11px] shadow-lg">
+              <div className="flex items-center gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 text-yellow-300 shrink-0" />
+                <span>{errorMessage}</span>
+              </div>
+              <button
+                type="button"
+                onClick={clearError}
+                className="font-bold text-yellow-200"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* VISUAL SWAP BANNER */}
+          {lastMoveEvent &&
+            (lastMoveEvent.kind === 'FOX_SWAP' ||
+              lastMoveEvent.kind === 'HAND_SWAP') && (
+              <div className="w-full px-2.5 py-1 mobile-landscape:py-0.5 rounded-xl bg-gradient-to-r from-sky-900/95 via-cyan-900/95 to-sky-900/95 border border-cyan-300/70 text-cyan-50 text-[10px] font-bold flex items-center justify-center gap-1 shadow-md">
+                <ArrowLeftRight className="w-3 h-3 text-cyan-300 shrink-0" />
+                {lastMoveEvent.kind === 'FOX_SWAP' ? (
+                  <div className="flex items-center gap-1 flex-wrap justify-center">
+                    <span className="text-yellow-300 font-black">🦊 SWAP:</span>
+                    <span className="px-1 py-0.2 rounded bg-cyan-400/25 border border-cyan-300/50 text-white font-extrabold">
                       {lastMoveEvent.actorId === myPlayerId
                         ? 'You'
-                        : lastMoveEvent.actorName}
-                    </strong>{' '}
-                    swapped{' '}
-                    <span className="px-1.5 py-0.5 rounded bg-cyan-500/25 border border-cyan-400/40 text-cyan-200 font-extrabold">
-                      Card #{lastMoveEvent.slotIndex + 1}
-                    </span>{' '}
-                    (from {lastMoveEvent.source === 'DISCARD' ? 'Discard' : 'Deck'}{' '}
-                    → threw {lastMoveEvent.discardedLabel})
-                  </span>
-                </div>
-              )}
-            </div>
-          )}
+                        : lastMoveEvent.actorName}{' '}
+                      #{lastMoveEvent.actorSlotIndex + 1}
+                    </span>
+                    <span className="text-yellow-300 font-black">⇄</span>
+                    <span className="px-1 py-0.2 rounded bg-cyan-400/25 border border-cyan-300/50 text-white font-extrabold">
+                      {lastMoveEvent.targetPlayerId === myPlayerId
+                        ? 'You'
+                        : lastMoveEvent.targetPlayerName}{' '}
+                      #{lastMoveEvent.targetSlotIndex + 1}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-1 flex-wrap justify-center truncate">
+                    <span className="text-yellow-300 font-black">🔄 SWAP:</span>
+                    <span className="truncate">
+                      <strong>
+                        {lastMoveEvent.actorId === myPlayerId
+                          ? 'You'
+                          : lastMoveEvent.actorName}
+                      </strong>{' '}
+                      swapped #{lastMoveEvent.slotIndex + 1} (threw{' '}
+                      {lastMoveEvent.discardedLabel})
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
 
-        {/* Turn Status Pill */}
-        <div
-          className={`px-3.5 py-1 rounded-full text-xs font-extrabold tracking-wide border flex items-center gap-1.5 ${
-            phase === 'ROUND_OVER'
-              ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-200'
-              : isMyTurn
-                ? 'bg-amber-400 text-stone-950 border-amber-300 shadow-md shadow-amber-400/20'
-                : 'bg-stone-900/90 border-stone-700 text-stone-300'
-          }`}
-        >
-          {phase === 'INITIAL_PEEK' && (
-            <>
-              <Eye className="w-3.5 h-3.5 text-amber-300" />
-              <span>INITIAL PEEK PHASE</span>
-            </>
-          )}
-          {phase === 'PLAYING' && (
-            <>
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>
-                {isMyTurn
-                  ? 'YOUR TURN!'
-                  : `${activePlayer?.nickname.toUpperCase()}'S TURN`}
-              </span>
-            </>
-          )}
-          {phase === 'ROUND_OVER' && (
-            <>
-              <Trophy className="w-3.5 h-3.5 text-yellow-300" />
-              <span>ROUND COMPLETE</span>
-            </>
-          )}
-        </div>
-
-        {/* Center Piles Row: Draw Pile & Discard Pile */}
-        <div className="flex items-center justify-center gap-5">
-          {/* Draw Pile */}
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
-              Deck ({clientState.deckCount})
-            </span>
-            <CardView
-              card={null}
-              faceUp={false}
-              size="md"
-              isSelectable={canTapDrawPile}
-              highlightBadge={canTapDrawPile ? 'TAP DRAW' : undefined}
-              onClick={handleDrawPileTap}
-            />
+          {/* Turn Status Pill */}
+          <div
+            className={`px-3.5 py-0.5 rounded-full text-[11px] font-black tracking-wide border-2 flex items-center gap-1.5 transition-all duration-300 ${
+              phase === 'ROUND_OVER'
+                ? 'bg-gradient-to-r from-emerald-400 to-teal-400 border-yellow-200 text-stone-950 shadow-lg'
+                : isMyTurn
+                  ? 'bg-gradient-to-r from-yellow-300 via-amber-300 to-orange-400 text-amber-950 border-white shadow-lg shadow-amber-400/35'
+                  : 'bg-wood-panel border-amber-400/50 text-amber-100'
+            }`}
+          >
+            {phase === 'INITIAL_PEEK' && (
+              <>
+                <Eye className="w-3 h-3 text-yellow-300" />
+                <span>MEMORIZE OUTER 2 CARDS</span>
+              </>
+            )}
+            {phase === 'PLAYING' && (
+              <>
+                <Sparkles className="w-3 h-3" />
+                <span>
+                  {isMyTurn
+                    ? 'YOUR TURN!'
+                    : `${activePlayer?.nickname.toUpperCase()}'S TURN`}
+                </span>
+              </>
+            )}
+            {phase === 'ROUND_OVER' && (
+              <>
+                <Trophy className="w-3 h-3" />
+                <span>ROUND COMPLETE!</span>
+              </>
+            )}
           </div>
 
-          {/* Active Drawn Card Tray (Shown when a card is currently drawn) */}
-          {myDrawnCard && isMyTurn && (
-            <div className="flex flex-col items-center gap-1.5 px-2.5 py-2 rounded-2xl bg-amber-500/15 border-2 border-amber-400/70 shadow-xl">
-              <span className="text-[10px] font-black uppercase tracking-wider text-amber-300">
-                Drawn ({clientState.drawnSource})
+          {/* Center Tabletop Felt Mat: Draw Pile & Discard Pile */}
+          <div className="w-full rounded-3xl bg-felt-mat px-3 py-2.5 mobile-landscape:py-1.5 flex items-center justify-center gap-4 mobile-landscape:gap-2.5">
+            {/* Draw Pile */}
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-[10px] mobile-landscape:text-[9px] font-black uppercase tracking-wider text-yellow-200/90">
+                Draw ({clientState.deckCount})
               </span>
               <CardView
-                card={myDrawnCard}
-                faceUp={true}
+                card={null}
+                faceUp={false}
                 size="md"
-                isSelected={true}
+                stackCount={clientState.deckCount}
+                isSelectable={canTapDrawPile}
+                highlightBadge={canTapDrawPile ? 'TAP DRAW' : undefined}
+                onClick={handleDrawPileTap}
               />
-              <div className="flex flex-col gap-1 w-full mt-0.5">
-                {isMyDrawnCardFox && (
+            </div>
+
+            {/* Active Drawn Card Tray */}
+            {myDrawnCard && isMyTurn && (
+              <div className="animate-draw-pop flex flex-col items-center gap-1 px-2 py-1.5 mobile-landscape:p-1.5 rounded-2xl bg-gradient-to-b from-amber-900/95 to-stone-950/95 border-2 border-yellow-300 shadow-2xl">
+                <span className="text-[9px] mobile-landscape:text-[8px] font-black uppercase tracking-wider text-yellow-300">
+                  Drawn ({clientState.drawnSource})
+                </span>
+                <CardView
+                  card={myDrawnCard}
+                  faceUp={true}
+                  size="md"
+                  isSelected={true}
+                />
+                <div className="flex flex-col mobile-landscape:flex-row gap-1 w-full mt-0.5">
+                  {isMyDrawnCardFox && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        dispatchIntent({
+                          type: 'ACTIVATE_FOX_POWER',
+                          playerId: myPlayerId,
+                        })
+                      }
+                      className="w-full px-2 py-1 rounded-xl bg-gradient-to-r from-yellow-300 via-amber-400 to-orange-400 text-amber-950 font-black text-[10px] mobile-landscape:text-[9px] flex items-center justify-center gap-1 shadow-md cursor-pointer"
+                    >
+                      {myDrawnCard.kind === 'FOX_PEEK' ? (
+                        <>
+                          <Eye className="w-3 h-3" />
+                          <span>Peek</span>
+                        </>
+                      ) : (
+                        <>
+                          <Repeat className="w-3 h-3" />
+                          <span>Swap</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={handleDiscardPileTap}
+                    className="w-full px-2 py-1 rounded-xl bg-stone-800 hover:bg-stone-700 active:scale-95 border border-amber-300/40 text-amber-100 font-bold text-[10px] mobile-landscape:text-[9px] flex items-center justify-center gap-1 shadow cursor-pointer"
+                  >
+                    <span>
+                      {clientState.drawnSource === 'DISCARD'
+                        ? '↩ Back'
+                        : '✕ Throw'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Opponent Drawn Indicator */}
+            {!isMyTurn && clientState.activePlayerHasDrawnCard && (
+              <div className="animate-draw-pop flex flex-col items-center gap-1 px-2 py-1 rounded-2xl bg-wood-panel border border-yellow-300/50">
+                <span className="text-[8px] font-bold uppercase text-yellow-300">
+                  From {clientState.drawnSource}
+                </span>
+                <CardView card={null} faceUp={false} size="sm" />
+              </div>
+            )}
+
+            {/* Discard Pile */}
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-[10px] mobile-landscape:text-[9px] font-black uppercase tracking-wider text-yellow-200/90">
+                Discard ({clientState.discardCount})
+              </span>
+              {topDiscard ? (
+                <CardView
+                  card={topDiscard}
+                  faceUp={true}
+                  size="md"
+                  stackCount={clientState.discardCount}
+                  isSelectable={canDrawFromDiscard || canDiscardDrawnCard}
+                  highlightBadge={
+                    canDiscardDrawnCard
+                      ? 'TAP DISCARD'
+                      : canDrawFromDiscard
+                        ? 'TAP TAKE'
+                        : undefined
+                  }
+                  onClick={handleDiscardPileTap}
+                />
+              ) : (
+                <button
+                  type="button"
+                  onClick={
+                    canDiscardDrawnCard ? handleDiscardPileTap : undefined
+                  }
+                  className={`w-[74px] h-[86px] mobile-landscape:w-[56px] mobile-landscape:h-[66px] rounded-2xl border-2 border-dashed flex items-center justify-center text-[10px] font-bold uppercase ${
+                    canDiscardDrawnCard
+                      ? 'border-yellow-300 text-yellow-200 bg-emerald-950/50 animate-pulse cursor-pointer'
+                      : 'border-amber-200/30 text-amber-100/50'
+                  }`}
+                >
+                  {canDiscardDrawnCard ? 'Tap Discard' : 'Empty'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Contextual Center Action Buttons (Kookriko / Complete Peek / Next Round) */}
+          <div className="flex items-center justify-center gap-2 min-h-[30px]">
+            {canCallKookriko && (
+              <button
+                type="button"
+                onClick={() =>
+                  dispatchIntent({
+                    type: 'CALL_KOOKRIKO',
+                    playerId: myPlayerId,
+                  })
+                }
+                className="px-4 py-1.5 mobile-landscape:py-1 rounded-2xl bg-gradient-to-r from-red-600 via-orange-500 to-amber-500 hover:from-red-500 hover:to-yellow-400 active:scale-95 text-white font-black text-xs mobile-landscape:text-[11px] tracking-wide uppercase shadow-xl shadow-red-600/40 border-2 border-yellow-300 flex items-center gap-1.5 cursor-pointer"
+              >
+                <span className="text-sm">🐓</span>
+                <span>Call Kookriko!</span>
+              </button>
+            )}
+
+            {isMyTurn && turnStep === 'PERFORMING_PEEK_VIEW' && (
+              <button
+                type="button"
+                onClick={() =>
+                  dispatchIntent({
+                    type: 'COMPLETE_PEEK',
+                    playerId: myPlayerId,
+                  })
+                }
+                className="px-4 py-1.5 mobile-landscape:py-1 rounded-2xl bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-stone-950 font-black text-xs mobile-landscape:text-[11px] uppercase shadow-lg border border-yellow-200 flex items-center gap-1.5 cursor-pointer"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                <span>Done Peeking</span>
+              </button>
+            )}
+
+            {phase === 'ROUND_OVER' && (
+              <div className="flex items-center gap-2">
+                {isHost ? (
                   <button
                     type="button"
                     onClick={() =>
                       dispatchIntent({
-                        type: 'ACTIVATE_FOX_POWER',
+                        type: 'START_GAME',
                         playerId: myPlayerId,
                       })
                     }
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-orange-500 to-amber-500 text-stone-950 font-black text-[11px] flex items-center justify-center gap-1 shadow cursor-pointer"
+                    className="px-4 py-1.5 mobile-landscape:py-1 rounded-2xl bg-gradient-to-r from-yellow-300 via-amber-400 to-orange-400 hover:from-yellow-200 hover:to-orange-300 text-amber-950 font-black text-xs mobile-landscape:text-[11px] uppercase shadow-xl border-2 border-white flex items-center gap-1.5 cursor-pointer"
                   >
-                    {myDrawnCard.kind === 'FOX_PEEK' ? (
-                      <>
-                        <Eye className="w-3 h-3" />
-                        <span>Use Peek</span>
-                      </>
-                    ) : (
-                      <>
-                        <Repeat className="w-3 h-3" />
-                        <span>Use Swap</span>
-                      </>
-                    )}
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Deal Next Round</span>
                   </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={handleDiscardPileTap}
-                  className="w-full px-2.5 py-1.5 rounded-lg bg-stone-800 hover:bg-stone-700 active:scale-95 border border-stone-600 text-amber-100 font-bold text-[11px] flex items-center justify-center gap-1 shadow cursor-pointer"
-                >
-                  <span>
-                    {clientState.drawnSource === 'DISCARD'
-                      ? '↩ Put Back'
-                      : '✕ Discard'}
+                ) : (
+                  <span className="text-xs text-amber-100 font-bold px-3 py-1 rounded-xl bg-wood-panel border border-amber-400/40">
+                    Waiting for Host...
                   </span>
-                </button>
+                )}
               </div>
-            </div>
-          )}
+            )}
+          </div>
+        </main>
 
-          {/* Opponent Drawn Indicator (When an opponent is holding a drawn card) */}
-          {!isMyTurn && clientState.activePlayerHasDrawnCard && (
-            <div className="flex flex-col items-center gap-1 px-2 py-1.5 rounded-2xl bg-stone-900/90 border border-stone-700">
-              <span className="text-[9px] font-bold uppercase text-amber-300">
-                From {clientState.drawnSource}
-              </span>
-              <CardView card={null} faceUp={false} size="sm" />
-            </div>
-          )}
+        {/* ZONE 3: LOCAL PLAYER'S 4 CARDS (Bottom in Portrait, Right Column 2x2 Grid in Mobile Landscape) */}
+        <footer className="shrink-0 mobile-landscape:w-[31%] bg-wood-panel border-2 border-amber-400/50 rounded-3xl p-2.5 mobile-landscape:p-2 space-y-2 mobile-landscape:space-y-1.5 shadow-2xl">
+          {/* Storybook Parchment Prompt Banner */}
+          <div className="flex items-center justify-between gap-1.5 px-2.5 py-1.5 mobile-landscape:py-1 rounded-2xl bg-parchment border border-amber-500/60">
+            <p className="text-xs mobile-landscape:text-[10px] font-extrabold text-amber-950 leading-tight">
+              {getInstructionPrompt()}
+            </p>
 
-          {/* Discard Pile */}
-          <div className="flex flex-col items-center gap-1">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-stone-400">
-              Discard ({clientState.discardCount})
-            </span>
-            {topDiscard ? (
-              <CardView
-                card={topDiscard}
-                faceUp={true}
-                size="md"
-                isSelectable={canDrawFromDiscard || canDiscardDrawnCard}
-                highlightBadge={
-                  canDiscardDrawnCard
-                    ? 'TAP DISCARD'
-                    : canDrawFromDiscard
-                      ? 'TAP TAKE'
-                      : undefined
-                }
-                onClick={handleDiscardPileTap}
-              />
-            ) : (
+            {phase === 'INITIAL_PEEK' && !myPlayer?.hasCompletedInitialPeek && (
               <button
                 type="button"
-                onClick={canDiscardDrawnCard ? handleDiscardPileTap : undefined}
-                className={`w-20 h-28 rounded-xl border-2 border-dashed flex items-center justify-center text-[10px] font-bold uppercase ${
-                  canDiscardDrawnCard
-                    ? 'border-emerald-400 text-emerald-300 bg-emerald-950/30 animate-pulse cursor-pointer'
-                    : 'border-stone-700 text-stone-600'
-                }`}
+                onClick={() =>
+                  dispatchIntent({
+                    type: 'FINISH_INITIAL_PEEK',
+                    playerId: myPlayerId,
+                  })
+                }
+                className="shrink-0 px-2.5 py-1 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white font-black text-[11px] mobile-landscape:text-[10px] flex items-center gap-1 shadow-md cursor-pointer animate-bounce"
               >
-                {canDiscardDrawnCard ? 'Tap Discard' : 'Empty'}
+                <CheckCircle2 className="w-3 h-3" />
+                <span>Ready!</span>
               </button>
             )}
           </div>
-        </div>
 
-        {/* Contextual Center Action Buttons (Kookriko / Complete Peek / Next Round) */}
-        <div className="flex items-center justify-center gap-2 min-h-[36px]">
-          {canCallKookriko && (
-            <button
-              type="button"
-              onClick={() =>
-                dispatchIntent({ type: 'CALL_KOOKRIKO', playerId: myPlayerId })
-              }
-              className="px-4 py-2 rounded-xl bg-gradient-to-r from-red-600 via-orange-500 to-amber-500 hover:from-red-500 hover:to-amber-400 active:scale-95 text-white font-black text-xs tracking-wide uppercase shadow-lg shadow-red-600/30 flex items-center gap-1.5 cursor-pointer"
-            >
-              <span>🐓</span>
-              <span>Call Kookriko!</span>
-            </button>
-          )}
+          {/* Local Player's 4 Cards: 4-across in Portrait, 2x2 Grid in Mobile Landscape so cards are NEVER trimmed! */}
+          {myPlayer && (
+            <div className="flex items-center justify-around gap-1.5 mobile-landscape:grid mobile-landscape:grid-cols-2 mobile-landscape:gap-x-3 mobile-landscape:gap-y-2 mobile-landscape:place-items-center pt-1 pb-1">
+              {myPlayer.hand.map((slot) => {
+                const isOwnSelectable =
+                  canTapOwnCardForSwap ||
+                  canTapOwnCardForPeek ||
+                  canTapForFoxSwap;
+                const isOwnSelected =
+                  canTapForFoxSwap && selectedMySlot === slot.slotIndex;
+                const swapHighlight = getSlotSwapHighlight(
+                  myPlayerId,
+                  slot.slotIndex
+                );
 
-          {isMyTurn && turnStep === 'PERFORMING_PEEK_VIEW' && (
-            <button
-              type="button"
-              onClick={() =>
-                dispatchIntent({ type: 'COMPLETE_PEEK', playerId: myPlayerId })
-              }
-              className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-black text-xs uppercase shadow-lg flex items-center gap-1.5 cursor-pointer"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>Done Peeking (End Turn)</span>
-            </button>
-          )}
+                let badge: string | undefined;
+                if (
+                  phase === 'INITIAL_PEEK' &&
+                  !myPlayer.hasCompletedInitialPeek &&
+                  (slot.slotIndex === 0 || slot.slotIndex === 3)
+                ) {
+                  badge = 'PEEK';
+                } else if (canTapOwnCardForSwap) {
+                  badge = 'TAP SWAP';
+                } else if (canTapOwnCardForPeek) {
+                  badge = 'TAP PEEK';
+                } else if (canTapForFoxSwap) {
+                  badge = isOwnSelected ? 'SELECTED' : 'TAP SWAP';
+                }
 
-          {phase === 'ROUND_OVER' && (
-            <div className="flex items-center gap-2">
-              {isHost ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    dispatchIntent({ type: 'START_GAME', playerId: myPlayerId })
-                  }
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-stone-950 font-black text-xs uppercase shadow-lg flex items-center gap-1.5 cursor-pointer"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  <span>Deal Next Round</span>
-                </button>
-              ) : (
-                <span className="text-xs text-stone-300 font-semibold px-3 py-1.5 rounded-xl bg-stone-900 border border-stone-800">
-                  Waiting for Host to deal next round...
-                </span>
-              )}
+                return (
+                  <CardView
+                    key={slot.slotIndex}
+                    card={slot.card}
+                    faceUp={slot.isRevealedToMe}
+                    size="lg"
+                    dealIndex={slot.slotIndex + 1}
+                    slotLabel={`#${slot.slotIndex + 1}`}
+                    isSelectable={isOwnSelectable}
+                    isSelected={isOwnSelected}
+                    highlightBadge={badge}
+                    wasRecentlySwapped={swapHighlight.isSwapped}
+                    swapBadgeText={swapHighlight.badge}
+                    onClick={() => handleOwnCardTap(slot.slotIndex)}
+                  />
+                );
+              })}
             </div>
           )}
-        </div>
-      </main>
 
-      {/* 3. BOTTOM ZONE: LOCAL PLAYER'S 4 CARDS (Anchored to Bottom) */}
-      <footer className="shrink-0 bg-stone-900/95 border border-stone-700/80 rounded-2xl p-3 space-y-2.5 shadow-2xl">
-        {/* Contextual Prompt Banner */}
-        <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl bg-stone-950/90 border border-stone-800">
-          <p className="text-xs font-semibold text-amber-200 leading-snug">
-            {getInstructionPrompt()}
-          </p>
-
-          {phase === 'INITIAL_PEEK' && !myPlayer?.hasCompletedInitialPeek && (
-            <button
-              type="button"
-              onClick={() =>
-                dispatchIntent({
-                  type: 'FINISH_INITIAL_PEEK',
-                  playerId: myPlayerId,
-                })
-              }
-              className="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-stone-950 font-black text-xs flex items-center gap-1 shadow cursor-pointer"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>I&apos;m Ready!</span>
-            </button>
-          )}
-        </div>
-
-        {/* Local Player's 4 Cards Row */}
-        {myPlayer && (
-          <div className="flex items-center justify-around gap-2 pt-0.5">
-            {myPlayer.hand.map((slot) => {
-              const isOwnSelectable =
-                canTapOwnCardForSwap ||
-                canTapOwnCardForPeek ||
-                canTapForFoxSwap;
-              const isOwnSelected =
-                canTapForFoxSwap && selectedMySlot === slot.slotIndex;
-              const swapHighlight = getSlotSwapHighlight(
-                myPlayerId,
-                slot.slotIndex
-              );
-
-              let badge: string | undefined;
-              if (
-                phase === 'INITIAL_PEEK' &&
-                !myPlayer.hasCompletedInitialPeek &&
-                (slot.slotIndex === 0 || slot.slotIndex === 3)
-              ) {
-                badge = 'PEEK';
-              } else if (canTapOwnCardForSwap) {
-                badge = 'TAP SWAP';
-              } else if (canTapOwnCardForPeek) {
-                badge = 'TAP PEEK';
-              } else if (canTapForFoxSwap) {
-                badge = isOwnSelected ? 'SELECTED' : 'TAP SWAP';
-              }
-
-              return (
-                <CardView
-                  key={slot.slotIndex}
-                  card={slot.card}
-                  faceUp={slot.isRevealedToMe}
-                  size="lg"
-                  slotLabel={`#${slot.slotIndex + 1}`}
-                  isSelectable={isOwnSelectable}
-                  isSelected={isOwnSelected}
-                  highlightBadge={badge}
-                  wasRecentlySwapped={swapHighlight.isSwapped}
-                  swapBadgeText={swapHighlight.badge}
-                  onClick={() => handleOwnCardTap(slot.slotIndex)}
-                />
-              );
-            })}
-          </div>
-        )}
-
-        {/* Local Player Info Strip */}
-        {myPlayer && (
-          <div className="flex items-center justify-between px-1 pt-0.5 text-xs">
-            <div className="flex items-center gap-1.5">
-              <span className="font-extrabold text-amber-300">
-                {myPlayer.nickname} (You)
-              </span>
-              {clientState.kookrikoCallerId === myPlayerId && (
-                <span className="px-1.5 py-0.5 rounded bg-red-500 text-white text-[10px] font-black uppercase">
-                  🐓 Called Kookriko
+          {/* Local Player Info Strip */}
+          {myPlayer && (
+            <div className="flex items-center justify-between px-1 pt-0.5 text-xs mobile-landscape:text-[10px]">
+              <div className="flex items-center gap-1 truncate">
+                <span className="font-black text-yellow-300 truncate">
+                  {myPlayer.nickname} (You)
                 </span>
-              )}
-              {phase === 'ROUND_OVER' &&
-                clientState.winnerIds.includes(myPlayerId) && (
-                  <span className="px-1.5 py-0.5 rounded bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 text-[10px] font-bold">
-                    🏆 Round Winner!
+                {clientState.kookrikoCallerId === myPlayerId && (
+                  <span className="px-1.5 py-0.2 rounded bg-red-500 text-white text-[9px] font-black uppercase">
+                    🐓
                   </span>
                 )}
-            </div>
+                {phase === 'ROUND_OVER' &&
+                  clientState.winnerIds.includes(myPlayerId) && (
+                    <span className="px-1.5 py-0.2 rounded-full bg-yellow-300 text-amber-950 text-[9px] font-black">
+                      🏆 Win!
+                    </span>
+                  )}
+              </div>
 
-            <div className="font-mono text-stone-300 text-[11px]">
-              {phase === 'ROUND_OVER' && myPlayer.roundScore !== null ? (
-                <span>
-                  Round:{' '}
-                  <strong className="text-amber-300">
-                    {myPlayer.roundScore}
-                  </strong>{' '}
-                  | Total: <strong>{myPlayer.totalScore}</strong>
+              <div className="flex items-center gap-1 font-mono shrink-0">
+                {phase === 'ROUND_OVER' && myPlayer.roundScore !== null && (
+                  <span className="text-emerald-300 font-black">
+                    +{myPlayer.roundScore}pt
+                  </span>
+                )}
+                <span className="px-1.5 py-0.5 rounded-lg bg-amber-950/90 border border-amber-400/40 text-yellow-200 font-bold">
+                  Total: {myPlayer.totalScore}pt
                 </span>
-              ) : (
-                <span>
-                  Total Score:{' '}
-                  <strong className="text-amber-300">
-                    {myPlayer.totalScore}
-                  </strong>
-                </span>
-              )}
+              </div>
             </div>
-          </div>
-        )}
-      </footer>
+          )}
+        </footer>
+      </div>
     </div>
   );
 };

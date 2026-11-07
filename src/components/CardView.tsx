@@ -11,8 +11,27 @@ export interface CardViewProps {
   highlightBadge?: string;
   wasRecentlySwapped?: boolean;
   swapBadgeText?: string;
+  stackCount?: number;
+  dealIndex?: number;
   disabled?: boolean;
   onClick?: () => void;
+}
+
+function getCardArtworkPath(card: Card | null): string {
+  if (!card) return '/cards/card-back.png';
+  if (card.kind === 'FOX_PEEK') return '/cards/card-peek.png';
+  if (card.kind === 'FOX_SWAP') return '/cards/card-swap.png';
+  if (card.kind === 'CHICKEN') return '/cards/card-9.png';
+  const val = Math.max(0, Math.min(9, card.value ?? 0));
+  return `/cards/card-${val}.png`;
+}
+
+function getCardTitle(card: Card | null): string {
+  if (!card) return 'Hidden Card';
+  if (card.kind === 'FOX_PEEK') return 'Fox Peek';
+  if (card.kind === 'FOX_SWAP') return 'Fox Swap';
+  if (card.kind === 'CHICKEN') return 'Chicken (9)';
+  return `Card ${card.value ?? 0}`;
 }
 
 export const CardView: React.FC<CardViewProps> = ({
@@ -25,164 +44,144 @@ export const CardView: React.FC<CardViewProps> = ({
   highlightBadge,
   wasRecentlySwapped = false,
   swapBadgeText,
+  stackCount = 0,
+  dealIndex = 0,
   disabled = false,
   onClick,
 }) => {
+  // Explicit pixel dimensions in both Portrait and Mobile Landscape so cards NEVER collapse or overflow
   const sizeClasses = {
-    sm: 'w-11 h-16 rounded-lg text-xs',
-    md: 'w-20 h-28 rounded-xl text-sm',
-    lg: 'w-full aspect-[5/7] max-w-[82px] rounded-xl text-base',
+    sm: 'w-[46px] h-[54px] mobile-landscape:w-[38px] mobile-landscape:h-[45px] rounded-xl text-xs',
+    md: 'w-[74px] h-[86px] mobile-landscape:w-[56px] mobile-landscape:h-[66px] rounded-2xl text-sm',
+    lg: 'w-[72px] h-[84px] sm:w-[80px] sm:h-[94px] mobile-landscape:w-[60px] mobile-landscape:h-[70px] rounded-2xl text-base',
   }[size];
 
+  const isShowingFront = Boolean(faceUp && card);
+  const frontArtUrl = getCardArtworkPath(card);
+
+  // Vibrant storybook border & shadow glow based on card identity
+  const frontBorderGlow = !card
+    ? 'border-amber-300'
+    : card.kind === 'FOX_PEEK'
+      ? 'border-sky-300 shadow-lg shadow-sky-400/40'
+      : card.kind === 'FOX_SWAP'
+        ? 'border-yellow-300 shadow-lg shadow-amber-400/40'
+        : (card.value ?? 0) >= 5
+          ? 'border-rose-400 shadow-lg shadow-rose-500/30'
+          : 'border-amber-300 shadow-lg shadow-amber-400/35';
+
   const interactiveClasses = isSelected
-    ? 'ring-3 ring-amber-300 scale-105 shadow-lg shadow-amber-400/40 z-10 cursor-pointer'
+    ? 'ring-3 ring-yellow-300 -translate-y-1.5 scale-106 shadow-2xl shadow-yellow-400/50 z-20 cursor-pointer animate-glow-gold'
     : isSelectable && !disabled
-      ? 'ring-2 ring-emerald-400/90 hover:scale-[1.03] active:scale-95 shadow-md shadow-emerald-500/20 cursor-pointer animate-pulse'
+      ? 'ring-2.5 ring-emerald-300 hover:-translate-y-1 hover:scale-104 active:scale-95 shadow-xl shadow-emerald-400/40 cursor-pointer'
       : wasRecentlySwapped
-        ? 'ring-2 ring-cyan-400 shadow-lg shadow-cyan-400/40 z-10'
+        ? 'ring-3 ring-cyan-300 shadow-xl shadow-cyan-400/50 z-10 animate-swap-pop'
         : disabled
           ? 'opacity-60 cursor-not-allowed'
           : onClick
-            ? 'cursor-pointer active:scale-95'
+            ? 'cursor-pointer hover:-translate-y-0.5 active:scale-95'
             : 'cursor-default';
 
-  // Card Back (Face Down)
-  if (!faceUp || !card) {
-    return (
+  const layers =
+    stackCount > 24 ? 3 : stackCount > 10 ? 2 : stackCount > 2 ? 1 : 0;
+
+  return (
+    <div
+      style={
+        dealIndex > 0 ? { animationDelay: `${dealIndex * 65}ms` } : undefined
+      }
+      className={`relative inline-flex items-center justify-center shrink-0 animate-deal-in ${sizeClasses}`}
+    >
+      {/* 3D Physical Stack Layers underneath (for Deck & Discard piles) */}
+      {layers >= 3 && (
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 translate-x-[5px] translate-y-[5px] rounded-[inherit] bg-amber-950 border border-amber-500/50 shadow-md pointer-events-none"
+        />
+      )}
+      {layers >= 2 && (
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 translate-x-[3.5px] translate-y-[3.5px] rounded-[inherit] bg-amber-900 border border-amber-400/60 shadow-sm pointer-events-none"
+        />
+      )}
+      {layers >= 1 && (
+        <div
+          aria-hidden="true"
+          className="absolute inset-0 translate-x-[2px] translate-y-[2px] rounded-[inherit] bg-amber-700 border border-amber-300/70 pointer-events-none"
+        />
+      )}
+
       <button
         type="button"
+        title={isShowingFront ? getCardTitle(card) : 'Face-down card'}
         onClick={!disabled && (isSelectable || onClick) ? onClick : undefined}
         disabled={disabled && !isSelectable}
-        className={`relative select-none transition-all duration-150 flex flex-col items-center justify-center bg-gradient-to-br from-amber-800 via-amber-900 to-stone-900 border-2 border-amber-500/40 shadow-md ${sizeClasses} ${interactiveClasses}`}
+        className={`relative w-full h-full select-none transition-all duration-200 card-perspective bg-transparent p-0 rounded-[inherit] ${interactiveClasses}`}
       >
-        {/* Inner decorative border */}
-        <div className=" inset-1 absolute rounded-md border border-amber-400/20 pointer-events-none flex items-center justify-center">
-          <span
-            className={
-              size === 'sm' ? 'text-base opacity-80' : 'text-2xl opacity-85'
-            }
+        {/* 3D Flipping Container */}
+        <div
+          className={`card-inner-3d rounded-[inherit] ${
+            isShowingFront ? 'is-flipped' : ''
+          }`}
+        >
+          {/* CARD BACK (Face Down) */}
+          <div className="card-face rounded-[inherit] overflow-hidden bg-gradient-to-br from-amber-600 via-amber-800 to-amber-950 border-2 border-amber-300/85 shadow-lg">
+            <img
+              src="/cards/card-back.png"
+              alt="Kookriko Card Back"
+              draggable={false}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 rounded-[inherit] ring-1 ring-inset ring-yellow-200/40 pointer-events-none" />
+          </div>
+
+          {/* CARD FRONT (Face Up Illustrated Artwork) */}
+          <div
+            className={`card-face card-face-front rounded-[inherit] overflow-hidden bg-amber-50 border-2 ${frontBorderGlow}`}
           >
-            🐓
-          </span>
+            {card && (
+              <img
+                src={frontArtUrl}
+                alt={getCardTitle(card)}
+                draggable={false}
+                className="w-full h-full object-fill"
+              />
+            )}
+            {/* Warm sunlit sheen */}
+            <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/10 to-white/25 pointer-events-none" />
+          </div>
         </div>
 
+        {/* Selectable pulsing ring overlay */}
+        {isSelectable && !disabled && !isSelected && (
+          <span
+            aria-hidden="true"
+            className="absolute inset-0 rounded-[inherit] ring-2 ring-yellow-300/90 animate-pulse pointer-events-none"
+          />
+        )}
+
+        {/* Slot Number Pill (Bottom Right) */}
         {slotLabel && (
-          <span className="absolute bottom-0.5 right-1 text-[9px] font-mono font-bold text-amber-200/70">
+          <span className="absolute -bottom-1.5 right-0.5 z-20 px-1.5 py-0.2 rounded-full bg-amber-950/95 border border-yellow-300/70 text-[8px] font-mono font-black text-yellow-200 shadow-md leading-tight">
             {slotLabel}
           </span>
         )}
 
+        {/* Top Action / Peek Badge */}
         {highlightBadge && (
-          <span className="absolute -top-1.5 inset-x-1 bg-amber-400 text-stone-950 text-[8px] font-black uppercase tracking-tighter py-0.5 px-1 rounded shadow">
+          <span className="absolute -top-2 inset-x-0.5 z-20 bg-gradient-to-r from-yellow-300 via-amber-300 to-orange-400 text-amber-950 border border-amber-900/50 text-[7px] font-black uppercase tracking-tighter py-0.5 px-1 rounded-full shadow-md truncate leading-tight">
             {highlightBadge}
           </span>
         )}
 
+        {/* Recently Swapped Notification Badge */}
         {wasRecentlySwapped && !highlightBadge && (
-          <span className="absolute -top-1.5 inset-x-0.5 bg-cyan-400 text-stone-950 text-[7px] font-black uppercase tracking-tighter py-0.5 px-0.5 rounded shadow animate-bounce">
+          <span className="absolute -top-2 inset-x-0.5 z-20 bg-gradient-to-r from-cyan-300 via-sky-300 to-teal-300 text-slate-950 border border-slate-900/40 text-[7px] font-black uppercase tracking-tighter py-0.5 px-1 rounded-full shadow-lg animate-bounce truncate leading-tight">
             {swapBadgeText ?? '⇄ SWAP'}
           </span>
         )}
       </button>
-    );
-  }
-
-  // Face-up Card Styling based on Kind & Value
-  let bgClass = 'from-emerald-900 via-emerald-950 to-stone-950 border-emerald-400/60 text-emerald-100';
-  let emoji = '🌾';
-  let titleText = `${card.value ?? ''}`;
-  let subText = 'LOW';
-
-  if (card.kind === 'CHICKEN') {
-    bgClass = 'from-red-900 via-rose-950 to-stone-950 border-red-400/80 text-red-100';
-    emoji = '🐓';
-    titleText = '9';
-    subText = 'CHICKEN';
-  } else if (card.kind === 'FOX_PEEK') {
-    bgClass = 'from-purple-900 via-indigo-950 to-stone-950 border-purple-400/80 text-purple-100';
-    emoji = '🦊';
-    titleText = 'PEEK';
-    subText = 'POWER';
-  } else if (card.kind === 'FOX_SWAP') {
-    bgClass = 'from-orange-800 via-amber-950 to-stone-950 border-orange-400/80 text-orange-100';
-    emoji = '🦊';
-    titleText = 'SWAP';
-    subText = 'POWER';
-  } else if (card.value !== null) {
-    if (card.value === 0) {
-      bgClass = 'from-cyan-800 via-teal-950 to-stone-950 border-cyan-300/80 text-cyan-100';
-      emoji = '🥚';
-      subText = 'BEST';
-    } else if (card.value <= 3) {
-      bgClass = 'from-emerald-800 via-emerald-950 to-stone-950 border-emerald-400/70 text-emerald-100';
-      emoji = '🐣';
-      subText = 'GOOD';
-    } else if (card.value <= 6) {
-      bgClass = 'from-amber-800 via-amber-950 to-stone-950 border-amber-400/70 text-amber-100';
-      emoji = '🌽';
-      subText = 'MID';
-    } else {
-      bgClass = 'from-orange-900 via-red-950 to-stone-950 border-orange-400/70 text-orange-100';
-      emoji = '🪶';
-      subText = 'HIGH';
-    }
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={!disabled && (isSelectable || onClick) ? onClick : undefined}
-      disabled={disabled && !isSelectable}
-      className={`relative select-none transition-all duration-150 flex flex-col items-center justify-between p-1.5 bg-gradient-to-br border-2 shadow-md ${bgClass} ${sizeClasses} ${interactiveClasses}`}
-    >
-      {/* Top corner */}
-      <div className="w-full flex items-center justify-between leading-none">
-        <span
-          className={`font-black ${
-            size === 'sm' ? 'text-[10px]' : 'text-xs'
-          }`}
-        >
-          {titleText}
-        </span>
-        {slotLabel && (
-          <span className="text-[9px] font-mono opacity-60">{slotLabel}</span>
-        )}
-      </div>
-
-      {/* Center Icon / Value */}
-      <div className="flex flex-col items-center justify-center my-auto leading-none">
-        <span className={size === 'sm' ? 'text-sm' : 'text-xl'}>{emoji}</span>
-        <span
-          className={`font-black tracking-tight mt-0.5 ${
-            size === 'sm'
-              ? 'text-xs'
-              : card.kind === 'FOX_PEEK' || card.kind === 'FOX_SWAP'
-                ? 'text-xs'
-                : 'text-xl'
-          }`}
-        >
-          {titleText}
-        </span>
-      </div>
-
-      {/* Bottom Label */}
-      {size !== 'sm' && (
-        <div className="w-full text-center text-[8px] font-extrabold uppercase tracking-wider opacity-75 truncate">
-          {subText}
-        </div>
-      )}
-
-      {highlightBadge && (
-        <span className="absolute -top-1.5 inset-x-1 bg-amber-400 text-stone-950 text-[8px] font-black uppercase tracking-tighter py-0.5 px-1 rounded shadow">
-          {highlightBadge}
-        </span>
-      )}
-
-      {wasRecentlySwapped && !highlightBadge && (
-        <span className="absolute -top-1.5 inset-x-0.5 bg-cyan-400 text-stone-950 text-[7px] font-black uppercase tracking-tighter py-0.5 px-0.5 rounded shadow animate-bounce">
-          {swapBadgeText ?? '⇄ SWAP'}
-        </span>
-      )}
-    </button>
+    </div>
   );
 };

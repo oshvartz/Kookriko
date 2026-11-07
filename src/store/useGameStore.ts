@@ -8,6 +8,7 @@ import type {
 import { sanitizeStateForPlayer } from '../engine/sanitizer';
 import { processHostGameIntent } from '../engine/handlers';
 import { generateRoomCode, peerManager } from '../network/peerManager';
+import { soundFX } from '../utils/sound';
 
 export type NetworkRole = 'NONE' | 'HOST' | 'CLIENT';
 export type ConnectionStatus = 'IDLE' | 'CONNECTING' | 'CONNECTED' | 'ERROR';
@@ -16,6 +17,12 @@ export type HostIntentProcessor = (
   state: GameState,
   intent: GameIntent
 ) => { nextState: GameState; error?: string };
+
+const BOT_NAMES = ['🦊 Sly Fox', '🐓 Lady Cluck', '🐣 Barnaby'];
+
+function isBotId(id: string): boolean {
+  return id.startsWith('bot-');
+}
 
 function createPlayerId(): string {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -48,6 +55,7 @@ function createInitialMasterState(
 }
 
 let externalIntentProcessor: HostIntentProcessor | null = null;
+let botTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function registerHostIntentProcessor(processor: HostIntentProcessor) {
   externalIntentProcessor = processor;
@@ -76,15 +84,181 @@ export interface GameStore {
   clearError: () => void;
   createRoom: (nickname?: string) => Promise<void>;
   joinRoom: (roomCode: string, nickname?: string) => Promise<void>;
+  startSoloGame: (nickname?: string) => void;
+  addBotPlayer: () => void;
   dispatchIntent: (intent: GameIntent) => void;
   leaveRoom: () => void;
 }
 
 export const useGameStore = create<GameStore>((set, get) => {
-  const processIntentOnHost = (
-    intent: GameIntent,
-    sourceConn?: unknown
-  ) => {
+  const scheduleBotActionsIfNeeded = () => {
+    if (botTimer) {
+      clearTimeout(botTimer);
+      botTimer = null;
+    }
+
+    const { role, masterState } = get();
+    if (role !== 'HOST' || !masterState) return;
+
+    // 1. Bots automatically complete initial peek
+    if (masterState.phase === 'INITIAL_PEEK') {
+      const unreadyBot = masterState.players.find(
+        (p) => isBotId(p.id) && !p.hasCompletedInitialPeek
+      );
+      if (unreadyBot) {
+        botTimer = setTimeout(() => {
+          processIntentOnHost({
+            type: 'FINISH_INITIAL_PEEK',
+            playerId: unreadyBot.id,
+          });
+        }, 450);
+      }
+      return;
+    }
+
+    // 2. Active Bot turn execution during PLAYING phase
+    if (masterState.phase === 'PLAYING') {
+      const activePlayer = masterState.players[masterState.activePlayerIndex];
+      if (!activePlayer || !isBotId(activePlayer.id)) return;
+
+      botTimer = setTimeout(() => {
+        const currentMaster = get().masterState;
+        if (!currentMaster || currentMaster.phase !== 'PLAYING') return;
+        const bot = currentMaster.players[currentMaster.activePlayerIndex];
+        if (!bot || !isBotId(bot.id)) return;
+
+        // Calculate bot's current numeric hand sum
+        const handValues = bot.hand.map((c) =>
+          c.value !== null ? c.value : 5
+        );
+        const totalHandScore = handValues.reduce((a, b) => a + b, 0);
+        const highestSlotIndex = handValues.indexOf(Math.max(...handValues));
+
+        if (currentMaster.turnStep === 'AWAITING_DRAW') {
+          // If bot has a very strong hand (<= 8 points) and nobody called Kookriko yet, call Kookriko!
+          if (
+            currentMaster.kookrikoCallerId === null &&
+            totalHandScore <= 8 &&
+            Math.random() < 0.65
+          ) {
+            processIntentOnHost({ type: 'CALL_KOOKRIKO', playerId: bot.id });
+            return;
+          }
+
+          const topDiscard =
+            currentMaster.discardPile[currentMaster.discardPile.length - 1] ??
+            null;
+          if (
+            topDiscard &&
+            topDiscard.value !== null &&
+            topDiscard.value <= 3 &&
+            handValues[highestSlotIndex] > topDiscard.value + 1
+          ) {
+            processIntentOnHost({
+              type: 'DRAW_FROM_DISCARD',
+              playerId: bot.id,
+            });
+          } else {
+            processIntentOnHost({ type: 'DRAW_FROM_DECK', playerId: bot.id });
+          }
+          return;
+        }
+
+        if (currentMaster.turnStep === 'DECIDING_DRAWN_CARD') {
+          const drawn = currentMaster.drawnCard;
+          if (!drawn) return;
+
+          if (drawn.kind === 'FOX_PEEK' || drawn.kind === 'FOX_SWAP') {
+            processIntentOnHost({
+              type: 'ACTIVATE_FOX_POWER',
+              playerId: bot.id,
+            });
+            return;
+          }
+
+          const drawnVal = drawn.value ?? 5;
+          if (
+            currentMaster.drawnSource === 'DISCARD' ||
+            drawnVal < handValues[highestSlotIndex]
+          ) {
+            processIntentOnHost({
+              type: 'SWAP_WITH_HAND',
+              playerId: bot.id,
+              handSlotIndex: highestSlotIndex,
+            });
+          } else {
+            processIntentOnHost({
+              type: 'DISCARD_DRAWN_CARD',
+              playerId: bot.id,
+            });
+          }
+          return;
+        }
+
+        if (currentMaster.turnStep === 'PEEKING_OWN_CARD') {
+          processIntentOnHost({
+            type: 'PEEK_OWN_CARD',
+            playerId: bot.id,
+            handSlotIndex: Math.floor(Math.random() * 4),
+          });
+          return;
+        }
+
+        if (currentMaster.turnStep === 'PERFORMING_PEEK_VIEW') {
+          processIntentOnHost({
+            type: 'COMPLETE_PEEK',
+            playerId: bot.id,
+          });
+          return;
+        }
+
+        if (currentMaster.turnStep === 'SELECTING_SWAP_CARDS') {
+          const opponents = currentMaster.players.filter(
+            (p) => p.id !== bot.id
+          );
+          const targetOpp =
+            opponents[Math.floor(Math.random() * opponents.length)];
+          if (targetOpp) {
+            processIntentOnHost({
+              type: 'FOX_SWAP_CARDS',
+              playerId: bot.id,
+              mySlotIndex: highestSlotIndex,
+              targetPlayerId: targetOpp.id,
+              targetSlotIndex: Math.floor(Math.random() * 4),
+            });
+          }
+        }
+      }, 950);
+    }
+  };
+
+  const playSoundForIntent = (intent: GameIntent, nextState: GameState) => {
+    switch (intent.type) {
+      case 'DRAW_FROM_DECK':
+      case 'DRAW_FROM_DISCARD':
+      case 'DISCARD_DRAWN_CARD':
+      case 'PEEK_OWN_CARD':
+        soundFX.playCardTap();
+        break;
+      case 'SWAP_WITH_HAND':
+      case 'FOX_SWAP_CARDS':
+        soundFX.playCardSwap();
+        break;
+      case 'ACTIVATE_FOX_POWER':
+        soundFX.playFoxPower();
+        break;
+      case 'CALL_KOOKRIKO':
+        soundFX.playKookrikoCall();
+        break;
+      default:
+        break;
+    }
+    if (nextState.phase === 'ROUND_OVER') {
+      soundFX.playRoundWin();
+    }
+  };
+
+  const processIntentOnHost = (intent: GameIntent, sourceConn?: unknown) => {
     const { role, masterState, myPlayerId } = get();
     if (role !== 'HOST' || !masterState) return;
 
@@ -100,6 +274,8 @@ export const useGameStore = create<GameStore>((set, get) => {
       return;
     }
 
+    playSoundForIntent(intent, nextState);
+
     const hostClientView = sanitizeStateForPlayer(nextState, myPlayerId);
     set({
       masterState: nextState,
@@ -108,6 +284,7 @@ export const useGameStore = create<GameStore>((set, get) => {
     });
 
     peerManager.broadcastSanitizedState(nextState);
+    scheduleBotActionsIfNeeded();
   };
 
   // Wire PeerManager callbacks into the Zustand store
@@ -116,6 +293,15 @@ export const useGameStore = create<GameStore>((set, get) => {
       processIntentOnHost(intent, conn);
     },
     onStateSyncReceived: (syncedState) => {
+      const prevPhase = get().clientState?.phase;
+      const prevKookriko = get().clientState?.kookrikoCallerId;
+      if (syncedState.kookrikoCallerId && !prevKookriko) {
+        soundFX.playKookrikoCall();
+      } else if (syncedState.phase === 'ROUND_OVER' && prevPhase !== 'ROUND_OVER') {
+        soundFX.playRoundWin();
+      } else {
+        soundFX.playCardTap();
+      }
       set({
         clientState: syncedState,
         connectionStatus: 'CONNECTED',
@@ -260,6 +446,87 @@ export const useGameStore = create<GameStore>((set, get) => {
       }
     },
 
+    startSoloGame: (nicknameInput?: string) => {
+      const state = get();
+      const chosenName =
+        (nicknameInput ?? state.nickname).trim() || 'You';
+      const hostPlayer: Player = {
+        id: state.myPlayerId,
+        nickname: chosenName,
+        isHost: true,
+        isConnected: true,
+        hand: [],
+        hasCompletedInitialPeek: false,
+        roundScore: null,
+        totalScore: 0,
+      };
+
+      const bot1: Player = {
+        id: 'bot-1',
+        nickname: BOT_NAMES[0],
+        isHost: false,
+        isConnected: true,
+        hand: [],
+        hasCompletedInitialPeek: false,
+        roundScore: null,
+        totalScore: 0,
+      };
+
+      const bot2: Player = {
+        id: 'bot-2',
+        nickname: BOT_NAMES[1],
+        isHost: false,
+        isConnected: true,
+        hand: [],
+        hasCompletedInitialPeek: false,
+        roundScore: null,
+        totalScore: 0,
+      };
+
+      const baseState: GameState = {
+        ...createInitialMasterState('SOLO', hostPlayer),
+        players: [hostPlayer, bot1, bot2],
+      };
+
+      const processor = externalIntentProcessor ?? processHostGameIntent;
+      const { nextState } = processor(baseState, {
+        type: 'START_GAME',
+        playerId: state.myPlayerId,
+      });
+
+      set({
+        nickname: chosenName,
+        role: 'HOST',
+        connectionStatus: 'CONNECTED',
+        masterState: nextState,
+        clientState: sanitizeStateForPlayer(nextState, state.myPlayerId),
+        errorMessage: null,
+      });
+
+      soundFX.playCardSwap();
+      scheduleBotActionsIfNeeded();
+    },
+
+    addBotPlayer: () => {
+      const { role, masterState } = get();
+      if (role !== 'HOST' || !masterState || masterState.phase !== 'LOBBY') {
+        return;
+      }
+      if (masterState.players.length >= 4) return;
+
+      const existingBots = masterState.players.filter((p) =>
+        isBotId(p.id)
+      ).length;
+      const botId = `bot-${existingBots + 1}-${Date.now().toString(36).slice(-3)}`;
+      const botName = BOT_NAMES[existingBots % BOT_NAMES.length];
+
+      processIntentOnHost({
+        type: 'JOIN_ROOM',
+        playerId: botId,
+        nickname: botName,
+      });
+    },
+
     dispatchIntent: (intent: GameIntent) => {
       const { role } = get();
       if (role === 'HOST') {
@@ -270,6 +537,10 @@ export const useGameStore = create<GameStore>((set, get) => {
     },
 
     leaveRoom: () => {
+      if (botTimer) {
+        clearTimeout(botTimer);
+        botTimer = null;
+      }
       peerManager.destroy();
       set({
         role: 'NONE',
